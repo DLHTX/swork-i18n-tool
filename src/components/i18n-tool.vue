@@ -24,24 +24,25 @@
                 <Input v-model="searchText" placeholder="Search..."/>
                 <Button prefix="ios-add" class="tw-ml-3" type="primary" @click="addTranslateRow">Add Row
                 </Button>
-                <Button type="warning" class="tw-ml-2">Generate File</Button>
+                <Button type="warning" class="tw-ml-2" @click="TranslateGenerate()">Translate & Generate File</Button>
             </div>
             <div class="tw-mt-2">
                 <Tooltip content="click to add table column" v-for="(item,index) in toLangList">
                     <Tag size="large" @click.native="addTranslateColumn(item)">{{ item.label }}</Tag>
                 </Tooltip>
             </div>
-            <Table :key="random" class="tw-mt-3" ref="table" align="center" size="small" :loading="loading"
+            <Table :height="tableHeight" :key="random" class="tw-mt-3" ref="table" align="center" size="small"
+                   :loading="loading"
                    :columns="tableColumns"
                    :data="data">
                 <template slot-scope="{ row, index }" slot="#">
                     {{ index + 1 }}
                 </template>
                 <template slot-scope="{ row, index }" slot="key">
-                    <Input size="small" v-model="row.key"/>
+                    <Input size="small" v-model="row.key" @on-blur="updateTranslateRow(row)"/>
                 </template>
                 <template slot-scope="{ row, index }" slot="en">
-                    <Input size="small" v-model="row.en"/>
+                    <Input size="small" v-model="row.en" @on-blur="updateTranslateRow(row)"/>
                 </template>
             </Table>
         </div>
@@ -81,11 +82,14 @@ const renderColumnTranslate = (h, params, _self, v) =>
             },
         })
     ]);
+
+let ACCEPT_FIELDS = []
 export default {
     name: "i18n-tool",
     components: {},
     data() {
         return {
+            tableHeight: null,
             searchText: "",
             translateFileList: [],
             translateFileIdx: 0,
@@ -126,8 +130,45 @@ export default {
     mounted() {
         this.project_id = this.$app.sworkData.curProject.project._id
         this.getTranslateFiles()
+        this.tableHeight = document.getElementsByClassName('i18n-tool-box')[0].clientHeight - 100
+        window.addEventListener('resize', () => this.tableHeight = document.getElementsByClassName('i18n-tool-box')[0].clientHeight - 100, false)
     },
     methods: {
+        TranslateGenerate() {
+            console.log(this.data)
+            this.translateAllRows(this.data)
+        },
+        translateAllRows() {
+            //整合from en的所有单词 以,划分
+            let fromLang = []
+            this.data.forEach((item, index) => {
+                console.log(item)
+                fromLang.push(item.en)
+            })
+
+            let translatePromiseArray = []
+            this.dynamicColumn.forEach(item => {
+                translatePromiseArray.push(this.translate(item.slot, fromLang.join("&")))
+            })
+            console.log(translatePromiseArray)
+            Promise.all(translatePromiseArray).then(res => {
+                console.log(res)
+            })
+        },
+        translate(to, from_v) {
+            return new Promise((resolve, reject) => {
+                this.$api.translate({
+                    type: "text",
+                    from: "en",
+                    to,
+                    from_v
+                }).then(res => {
+                    resolve(res)
+                }).catch(err => {
+                    reject(err)
+                })
+            })
+        },
         async deleteColumn(param) {
             this.data.forEach((item, index) => {
                 for (let key in item) {
@@ -136,9 +177,20 @@ export default {
                     }
                 }
             })
-            console.log(this.data, 'aa')
+            this.tableColumns.forEach((item, index) => {
+                if (item.slot == param) {
+                    this.tableColumns.splice(index, 1)
+                }
+            })
+            this.random = new Date().getTime()
             await this.getLanguage()
             this.spliceLangTag()
+        },
+        updateTranslateRow(row) {
+            console.log(row)
+            this.$api.saveTranslate(this.project_id, this.translateFileList[this.translateFileIdx]._id, {rows: [this.toDatabase(row)]}).then(res => {
+
+            })
         },
         addTranslateRow() {
             let obj = {
@@ -177,16 +229,18 @@ export default {
                 for (let key in this.data[0]) {
                     this.toLangList.forEach((item, index) => {
                         if (key == item.value) {
-                            this.dynamicColumn.push({
-                                title: item.label,
-                                slot: item.value,
-                                align: "center",
-                                width: "100",
-                                render: (h, params) =>
-                                    renderColumnTranslate(h, params, this, item.value),
-                                renderHeader: (h, params) => renderHeader(h, params, this, item.value),
-                            })
-                            console.log(this.dynamicColumn)
+                            if (!this.tableColumns.some(v => v.slot == key)) {
+                                this.dynamicColumn.push({
+                                    title: item.label,
+                                    slot: item.value,
+                                    align: "center",
+                                    width: "100",
+                                    render: (h, params) =>
+                                        renderColumnTranslate(h, params, this, item.value),
+                                    renderHeader: (h, params) => renderHeader(h, params, this, item.value),
+                                })
+                            }
+                            console.log(this.dynamicColumn, "cc")
                             this.tableColumns = this.tableColumns.concat(this.dynamicColumn)
                             this.random = new Date().getTime()
                             console.log(this.tableColumns)
@@ -210,15 +264,17 @@ export default {
                 this.$api.getLanguage().then(res => {
                     //默认从英文来翻译
                     this.toLangList = []
+                    ACCEPT_FIELDS = ['_id', 'key', 'en']
                     if (res.from_to.en) {
                         for (let key in res.from_to.en) {
-                            console.log(key)
                             this.toLangList.push({
                                 label: res.from_to.en[key],
                                 value: key
                             })
+                            ACCEPT_FIELDS.push(key)
                         }
                     }
+
                     resolve()
                 }).catch(err => reject())
             })
@@ -255,7 +311,15 @@ export default {
 
                 }
             });
-        }
+        },
+        toDatabase(params) {
+            let data = {};
+            for (let i of ACCEPT_FIELDS) {
+                if (!params.hasOwnProperty(i)) continue;
+                data[i] = params[i];
+            }
+            return data;
+        },
     }
 }
 </script>
