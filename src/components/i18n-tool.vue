@@ -11,7 +11,10 @@
                     <div class='community-li' v-for='(v,k) in translateFileList'
                          @click='handleFileClick(k)' :class='translateFileIdx==k?"community-li-active":""'>
                         <Icon class='fwb' :type='v.icon' v-if='v.icon'></Icon>
-                        {{ v.name }}
+                        <Tooltip content="Double click to edit" placement="left">
+                            <span v-if="curEditIdx!=k" @dblclick="curEditIdx=k">{{ v.name }}</span>
+                            <Input v-else v-model="v.name" size="small" @on-blur="saveAndBlur(k)"/>
+                        </Tooltip>
                         <Button type="error" size="small" class="tw-ml-auto delete-btn"
                                 @click="deleteTranslateFile(v._id)">Delete
                         </Button>
@@ -42,7 +45,7 @@
                     <Input size="small" v-model="row.key" @on-blur="updateTranslateRow(row)"/>
                 </template>
                 <template slot-scope="{ row, index }" slot="en">
-                    <Input size="small" v-model="row.en" @on-blur="updateTranslateRow(row)"/>
+                    <Input size="small" v-model="row.en.text" @on-blur="updateTranslateRow(row)"/>
                 </template>
             </Table>
         </div>
@@ -78,8 +81,32 @@ const renderColumnTranslate = (h, params, _self, v) =>
             props: {
                 size: "mini",
                 type: "text",
-                value: _self.data[params.index][v],
+                value: _self.data[params.index][v].text,
+                readonly: _self.data[params.index][v].status == 'unlock' ? false : true,
             },
+        }),
+        h("Icon", {
+            props: {
+                type:
+                    _self.data[params.index][v].status == 'unlock'
+                        ? "md-lock"
+                        : "ios-unlock-outline",
+                size: "22",
+            },
+            style: {
+                cursor: "pointer",
+                marginRight: "5px",
+                marginLeft: "5px",
+            },
+            on: {
+                click: () => {
+                    if (_self.data[params.index][v].status == 'unlock') {
+                        _self.translateLock(params.index, v, false);
+                    } else {
+                        _self.translateLock(params.index, v, true);
+                    }
+                },
+            }
         })
     ]);
 
@@ -89,6 +116,7 @@ export default {
     components: {},
     data() {
         return {
+            curEditIdx: -1,
             tableHeight: null,
             searchText: "",
             translateFileList: [],
@@ -131,49 +159,23 @@ export default {
         this.project_id = this.$app.sworkData.curProject.project._id
         this.getTranslateFiles()
         this.tableHeight = document.getElementsByClassName('i18n-tool-box')[0].clientHeight - 100
-        window.addEventListener('resize', () => this.tableHeight = document.getElementsByClassName('i18n-tool-box')[0].clientHeight - 100, false)
+        // window.addEventListener('resize', () => this.tableHeight = document.getElementsByClassName('i18n-tool-box')[0].clientHeight - 100, false)
     },
     methods: {
+        translateLock(index, key, status) {
+            this.data[index][key].status = status ? 'lock' : 'unlock'
+            this.random = new Date().getTime()
+        },
         TranslateGenerate() {
             console.log(this.data)
-            this.translateAllRows(this.data)
-        },
-        translateAllRows() {
-            //整合from en的所有单词 以,划分
-            let fromLang = []
-            this.data.forEach((item, index) => {
-                console.log(item)
-                fromLang.push(item.en)
-            })
-
-            let translatePromiseArray = []
-            this.dynamicColumn.forEach(item => {
-                translatePromiseArray.push(this.translate(item.slot, fromLang.join("&")))
-            })
-            console.log(translatePromiseArray)
-            Promise.all(translatePromiseArray).then(res => {
-                console.log(res)
-            })
-        },
-        translate(to, from_v) {
-            return new Promise((resolve, reject) => {
-                this.$api.translate({
-                    type: "text",
-                    from: "en",
-                    to,
-                    from_v
-                }).then(res => {
-                    resolve(res)
-                }).catch(err => {
-                    reject(err)
-                })
-            })
+            // this.translateAllRows(this.data)
         },
         async deleteColumn(param) {
             this.data.forEach((item, index) => {
                 for (let key in item) {
                     if (key == param) {
                         delete this.data[index][key]
+                        delete this.data[index][key + '_lock']
                     }
                 }
             })
@@ -193,10 +195,7 @@ export default {
             })
         },
         addTranslateRow() {
-            let obj = {
-                key: "",
-                en: ""
-            };
+            let obj = {key: "", en: {text: "", status: "unlock"}};
             this.$api.addTranslateRow(this.project_id, this.translateFileList[this.translateFileIdx]._id, obj).then(res => {
                 this.$Message.success('Add Success')
                 this.getTranslateRows()
@@ -205,7 +204,7 @@ export default {
         saveTranslateRow(row) {
             this.$api.saveTranslateRow(this.project_id, this.translateFileList[this.translateFileIdx]._id, row._id, row).then(res => {
                 this.$Message.success('Add Success')
-                this.getTranslateRows()
+                this.getTranslateFiles()
             })
         },
         handleFileClick(index) {
@@ -219,7 +218,7 @@ export default {
                 this.data = res.data
                 await this.getLanguage()
                 this.spliceLangTag()
-            }).catch(err => {
+            }).catch(() => {
                 this.loading = false
             })
         },
@@ -228,13 +227,13 @@ export default {
             if (this.data.length > 0) {
                 for (let key in this.data[0]) {
                     this.toLangList.forEach((item, index) => {
-                        if (key == item.value) {
-                            if (!this.tableColumns.some(v => v.slot == key)) {
+                        if (key.text == item.value) {
+                            if (!this.tableColumns.some(v => v.slot == key.text)) {
                                 this.dynamicColumn.push({
                                     title: item.label,
                                     slot: item.value,
                                     align: "center",
-                                    width: "100",
+                                    width: "150",
                                     render: (h, params) =>
                                         renderColumnTranslate(h, params, this, item.value),
                                     renderHeader: (h, params) => renderHeader(h, params, this, item.value),
@@ -253,11 +252,25 @@ export default {
         },
         addTranslateColumn(row) {
             console.log(row)
-            this.data.forEach(item => {
-                item[row.value] = ""
+            //translate_file_id
+            // this.data.forEach(item => {
+            //     item[row.value] = ""
+            // })
+            this.saveTranslateFile({target: [row.value]})
+            // this.$forceUpdate()
+            // this.spliceLangTag()
+        },
+        saveAndBlur(index) {
+            this.saveTranslateFile({translateName: this.translateFileList[index].name, index})
+        },
+        saveTranslateFile({translateName, target, index}) {
+            this.$api.saveTranslateFile(this.project_id, this.translateFileList[index ? index : this.translateFileIdx]._id, {
+                name: translateName ? translateName : this.translateFileList[index ? index : this.translateFileIdx].name,
+                target: target ? target : []
+            }).then(res => {
+                this.curEditIdx = -1
+                this.getTranslateRows()
             })
-            this.$forceUpdate()
-            this.spliceLangTag()
         },
         getLanguage() {
             return new Promise((resolve, reject) => {
@@ -327,6 +340,12 @@ export default {
 <style lang="less">
 .i18n-tool-box {
     align-items: flex-start;
+
+    .ivu-table-wrapper .ivu-table-tbody .ivu-table-cell > div {
+        display: flex;
+        align-items: center;
+        background: #fff;
+    }
 
     .left-side {
         background: white;
