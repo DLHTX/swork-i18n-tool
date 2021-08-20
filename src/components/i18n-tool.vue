@@ -22,7 +22,7 @@
                 </div>
             </div>
         </div>
-        <div class="right-side tw-w-9/12 tw-ml-4 tw-pl-4" v-if="translateFileList.length!=0">
+        <div class="right-side tw-w-9/12 tw-ml-4 tw-pl-4" v-if="translateFileList.length!=0" style="width: 75%;">
             <div class="dflex-uncenter">
                 <Input v-model="searchText" placeholder="Search..."/>
                 <Button prefix="ios-add" class="tw-ml-3" type="primary" @click="addTranslateRow">Add Row
@@ -41,7 +41,7 @@
             <Table :height="tableHeight" :key="random" class="tw-mt-3" ref="table" align="center" size="small"
                    :loading="loading"
                    :columns="tableColumns"
-                   :data="data" :width="rightSideWidth">
+                   :data="data">
                 <template slot-scope="{ row, index }" slot="#">
                     {{ index + 1 }}
                 </template>
@@ -127,7 +127,7 @@ export default {
         return {
             curEditIdx: -1,
             tableHeight: null,
-            rightSideWidth: null,
+            rightSideWidth: 1000,
             searchText: "",
             translateFileList: [],
             translateFileIdx: 0,
@@ -173,13 +173,17 @@ export default {
             this.getTranslateFiles()
         }
     },
+    created() {
+
+    },
     mounted() {
+        // this.$nextTick(() => {
+        //     this.rightSideWidth = document.getElementsByClassName('right-side')[0].clientWidth
+        //     alert(document.getElementsByClassName('right-side')[0])
+        // })
         this.project_id = this.$app.sworkData.curProject.project._id
         this.getTranslateFiles()
         this.tableHeight = document.getElementsByClassName('i18n-tool-box')[0].clientHeight - 100
-        this.$nextTick(() => {
-            this.rightSideWidth = document.getElementsByClassName('right-side')[0].clientWidth
-        })
         // window.addEventListener('resize', () => this.tableHeight = document.getElementsByClassName('i18n-tool-box')[0].clientHeight - 100, false)
     },
     methods: {
