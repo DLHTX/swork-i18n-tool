@@ -41,7 +41,7 @@
             <Table :height="tableHeight" :key="random" class="tw-mt-3" ref="table" align="center" size="small"
                    :loading="loading"
                    :columns="tableColumns"
-                   :data="data">
+                   :data="data" :width="rightSideWidth">
                 <template slot-scope="{ row, index }" slot="#">
                     {{ index + 1 }}
                 </template>
@@ -53,7 +53,9 @@
                 </template>
 
                 <template slot-scope="{ row, index }" slot="action">
-                    <i class="hover-red fr  ivu-icon iconfont icon-trash ios-icon hover-invert text-red mr10"></i>
+                    <div class="dflex">
+                        <i class="hover-red  ivu-icon iconfont icon-trash ios-icon hover-invert text-red "></i>
+                    </div>
                 </template>
             </Table>
         </div>
@@ -125,6 +127,7 @@ export default {
         return {
             curEditIdx: -1,
             tableHeight: null,
+            rightSideWidth: null,
             searchText: "",
             translateFileList: [],
             translateFileIdx: 0,
@@ -149,7 +152,13 @@ export default {
                     align: "center",
                     minWidth: 120
                 },
-
+                {
+                    title: "Action",
+                    slot: "action",
+                    align: "center",
+                    fixed: 'right',
+                    width: 80,
+                }
             ],
             dynamicColumn: [],
             data: [],
@@ -168,6 +177,9 @@ export default {
         this.project_id = this.$app.sworkData.curProject.project._id
         this.getTranslateFiles()
         this.tableHeight = document.getElementsByClassName('i18n-tool-box')[0].clientHeight - 100
+        this.$nextTick(() => {
+            this.rightSideWidth = document.getElementsByClassName('right-side')[0].clientWidth
+        })
         // window.addEventListener('resize', () => this.tableHeight = document.getElementsByClassName('i18n-tool-box')[0].clientHeight - 100, false)
     },
     methods: {
@@ -241,6 +253,7 @@ export default {
                         this.tableColumns.splice(index, 1)
                     }
                 })
+
                 this.random = new Date().getTime()
                 await this.getLanguage()
                 this.spliceLangTag()
@@ -266,20 +279,13 @@ export default {
                                     renderHeader: (h, params) => renderHeader(h, params, this, item.value),
                                 })
                             }
-                            this.tableColumns = this.tableColumns.concat(this.dynamicColumn)
                             this.toLangList.splice(index, 1)
                             this.$forceUpdate()
+                            this.random = new Date().getTime()
                         }
                     })
                 }
-                this.tableColumns.push({
-                    title: "Action",
-                    slot: "action",
-                    align: "center",
-                    is_dynamic: true,
-                    width: 80,
-                })
-                this.random = new Date().getTime()
+                this.tableColumns = this.tableColumns.concat(this.dynamicColumn)
             }
         },
         addTranslateColumn(row) {
