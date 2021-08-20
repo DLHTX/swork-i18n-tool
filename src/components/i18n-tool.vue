@@ -27,12 +27,16 @@
                 <Input v-model="searchText" placeholder="Search..."/>
                 <Button prefix="ios-add" class="tw-ml-3" type="primary" @click="addTranslateRow">Add Row
                 </Button>
-                <Button type="warning" class="tw-ml-2" @click="TranslateGenerate()">Translate & Generate File</Button>
+                <Button type="warning" class="tw-ml-2" @click="startTranslate()">Translate</Button>
+                <!--<Button type="warning" class="tw-ml-2" @click="TranslateGenerate()">Download File</Button>-->
             </div>
             <div class="tw-mt-2">
                 <Tooltip content="click to add table column" v-for="(item,index) in toLangList">
                     <Tag size="large" @click.native="addTranslateColumn(item)">{{ item.label }}</Tag>
                 </Tooltip>
+            </div>
+            <div class="text-red tw-mt-1">
+                Tips:The lock button can prevent it from being overwritten during automatic translation
             </div>
             <Table :height="tableHeight" :key="random" class="tw-mt-3" ref="table" align="center" size="small"
                    :loading="loading"
@@ -46,6 +50,10 @@
                 </template>
                 <template slot-scope="{ row, index }" slot="en">
                     <Input size="small" v-model="row.en.text" @on-blur="updateTranslateRow(row)"/>
+                </template>
+
+                <template slot-scope="{ row, index }" slot="action">
+                    <i class="hover-red fr  ivu-icon iconfont icon-trash ios-icon hover-invert text-red mr10"></i>
                 </template>
             </Table>
         </div>
@@ -82,15 +90,14 @@ const renderColumnTranslate = (h, params, _self, v) =>
                 size: "mini",
                 type: "text",
                 value: _self.data[params.index][v].text,
-                readonly: _self.data[params.index][v].status == 'unlock' ? false : true,
             },
         }),
         h("Icon", {
             props: {
                 type:
                     _self.data[params.index][v].status == 'unlock'
-                        ? "md-lock"
-                        : "ios-unlock-outline",
+                        ? "ios-unlock-outline "
+                        : "md-lock",
                 size: "22",
             },
             style: {
@@ -101,9 +108,9 @@ const renderColumnTranslate = (h, params, _self, v) =>
             on: {
                 click: () => {
                     if (_self.data[params.index][v].status == 'unlock') {
-                        _self.translateLock(params.index, v, false);
-                    } else {
                         _self.translateLock(params.index, v, true);
+                    } else {
+                        _self.translateLock(params.index, v, false);
                     }
                 },
             }
@@ -141,13 +148,15 @@ export default {
                     slot: "en",
                     align: "center",
                     minWidth: 120
-                }
+                },
+
             ],
             dynamicColumn: [],
             data: [],
             loading: false,
             toLangList: [],
-            random: new Date().getTime()
+            random: new Date().getTime(),
+            translateInterval: [],
         }
     },
     watch: {
@@ -162,9 +171,26 @@ export default {
         // window.addEventListener('resize', () => this.tableHeight = document.getElementsByClassName('i18n-tool-box')[0].clientHeight - 100, false)
     },
     methods: {
+        startTranslate() {
+            this.$api.startTranslate(this.project_id, this.translateFileList[this.translateFileIdx]._id).then(res => {
+                this.$Message.success('translating')
+                this.$api.translateInQueue()
+                this.getTranslateProcess()
+            })
+        },
+        getTranslateProcess() {
+            return new Promise((resolve, reject) => {
+                this.$api.getTranslateProcess(this.project_id, this.translateFileList[this.translateFileIdx]._id).then(res => {
+                    resolve(res)
+                }).catch(err => {
+                    reject(err)
+                })
+            })
+        },
         translateLock(index, key, status) {
             this.data[index][key].status = status ? 'lock' : 'unlock'
             this.random = new Date().getTime()
+            this.updateTranslateRow(this.data[index])
         },
         TranslateGenerate() {
             console.log(this.data)
@@ -201,12 +227,6 @@ export default {
                 this.getTranslateRows()
             })
         },
-        saveTranslateRow(row) {
-            this.$api.saveTranslateRow(this.project_id, this.translateFileList[this.translateFileIdx]._id, row._id, row).then(res => {
-                this.$Message.success('Add Success')
-                this.getTranslateFiles()
-            })
-        },
         handleFileClick(index) {
             this.translateFileIdx = index
             this.getTranslateRows(index)
@@ -216,6 +236,12 @@ export default {
             this.$api.getTranslateRows(this.project_id, this.translateFileList[index ? index : this.translateFileIdx]._id).then(async res => {
                 this.loading = false
                 this.data = res.data
+                this.tableColumns.forEach((item, index) => {
+                    if (item.is_dynamic) {
+                        this.tableColumns.splice(index, 1)
+                    }
+                })
+                this.random = new Date().getTime()
                 await this.getLanguage()
                 this.spliceLangTag()
             }).catch(() => {
@@ -227,27 +253,33 @@ export default {
             if (this.data.length > 0) {
                 for (let key in this.data[0]) {
                     this.toLangList.forEach((item, index) => {
-                        if (key.text == item.value) {
-                            if (!this.tableColumns.some(v => v.slot == key.text)) {
+                        if (key == item.value) {
+                            if (!this.tableColumns.some(v => v.slot == key)) {
                                 this.dynamicColumn.push({
                                     title: item.label,
                                     slot: item.value,
                                     align: "center",
                                     width: "150",
+                                    is_dynamic: true,
                                     render: (h, params) =>
                                         renderColumnTranslate(h, params, this, item.value),
                                     renderHeader: (h, params) => renderHeader(h, params, this, item.value),
                                 })
                             }
-                            console.log(this.dynamicColumn, "cc")
                             this.tableColumns = this.tableColumns.concat(this.dynamicColumn)
-                            this.random = new Date().getTime()
-                            console.log(this.tableColumns)
                             this.toLangList.splice(index, 1)
                             this.$forceUpdate()
                         }
                     })
                 }
+                this.tableColumns.push({
+                    title: "Action",
+                    slot: "action",
+                    align: "center",
+                    is_dynamic: true,
+                    width: 80,
+                })
+                this.random = new Date().getTime()
             }
         },
         addTranslateColumn(row) {
