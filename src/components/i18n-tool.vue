@@ -293,7 +293,7 @@ export default {
                 this.$api.getTranslateProcess(this.project_id, this.translateFileList[this.translateFileIdx]._id).then(res => {
                     this.translateProgress = (res.success / res.all).toFixed(2) * 100
                     this.$forceUpdate()
-                    if (this.translateProgress == 100 || res.fail + res.success == res.all) {
+                    if (this.translateProgress == 100 ) {
                         this.translateFail = res.fail
                         clearInterval(this.translateProgressInterval)
                         this.getTranslateRows()
@@ -368,37 +368,43 @@ export default {
                 })
                 this.random = new Date().getTime()
                 await this.getLanguage()
-                // this.spliceLangTag()
+                this.spliceLangTag()
             }).catch(() => {
                 this.loading = false
             })
         },
         spliceLangTag() {
-            this.dynamicColumn = []
-            if (this.data.length > 0) {
-                for (let key in this.data[0]) {
-                    this.toLangList.forEach((item, index) => {
-                        if (key == item.value) {
-                            if (!this.tableColumns.some(v => v.slot == key)) {
-                                this.dynamicColumn.push({
-                                    title: item.label,
-                                    slot: item.value,
-                                    align: "center",
-                                    width: "150",
-                                    is_dynamic: true,
-                                    render: (h, params) =>
-                                        renderColumnTranslate(h, params, this, item.value),
-                                    renderHeader: (h, params) => renderHeader(h, params, this, item.value),
-                                })
+            try {
+                this.dynamicColumn = []
+                if (this.data.length > 0) {
+                    for (let key in this.data[0]) {
+                        this.toLangList.forEach((item, index) => {
+                            if (key == item.value) {
+                                if (!this.tableColumns.some(v => v.slot == key)) {
+                                    this.dynamicColumn.push({
+                                        title: item.label,
+                                        slot: item.value,
+                                        align: "center",
+                                        width: "150",
+                                        is_dynamic: true,
+                                        render: (h, params) =>
+                                            renderColumnTranslate(h, params, this, item.value),
+                                        renderHeader: (h, params) => renderHeader(h, params, this, item.value),
+                                    })
+                                }
+                                this.toLangList.splice(index, 1)
+                                this.$forceUpdate()
+                                this.random = new Date().getTime()
                             }
-                            this.toLangList.splice(index, 1)
-                            console.log(this.toLangList,'111')
-                            this.random = new Date().getTime()
-                        }
-                    })
+                        })
+                    }
+                    if (this.dynamicColumn.length != 0) {
+                        this.tableColumns = this.tableColumns.concat(this.dynamicColumn)
+                    }
+                    console.log(this.tableColumns)
                 }
-                this.tableColumns = this.tableColumns.concat(this.dynamicColumn)
-                console.log(this.tableColumns)
+            } catch (e) {
+                this.$Message.error(e)
             }
         },
         addTranslateColumn(row) {
