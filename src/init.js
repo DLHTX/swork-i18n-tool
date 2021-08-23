@@ -1,5 +1,3 @@
-import Vue from "vue";
-
 export default function (Vue, app) {
     window.addEventListener("unmount", function () {
         console.log("The micro app has been uninstalled");
