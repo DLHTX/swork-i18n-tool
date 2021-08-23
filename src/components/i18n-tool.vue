@@ -71,12 +71,11 @@
         <Modal v-model="showUpload" width="360" :footer-hide="true">
             <div class="tw-p-4 tw-mt-4">
                 <div class="tw-mb-4 text-red">Please enter in JSON format</div>
-                <Select v-model="uploadJsonData.type" class="tw-mb-2" placeholder="Please Select type">
-                    <Option value="javascript">javascript</Option>
-                    <Option value="vue">vue</Option>
-                    <Option value="php">php</Option>
-                </Select>
-
+                <!--<Select v-model="uploadJsonData.type" class="tw-mb-2" placeholder="Please Select type">-->
+                <!--    <Option value="javascript">javascript</Option>-->
+                <!--    <Option value="vue">vue</Option>-->
+                <!--    <Option value="php">php</Option>-->
+                <!--</Select>-->
                 <vue-json-editor
                     v-model="uploadJsonData.json"
                     :show-btns="true"
@@ -89,18 +88,18 @@
 
         <Modal v-model="showDownload" width="360" @on-ok="downloadFile">
             <div class="tw-p-4 tw-mt-4">
-                <Select v-model="uploadJsonData.type" class="tw-mb-2" placeholder="Please Select type">
-                    <Option value="javascript">javascript</Option>
-                    <Option value="vue">vue</Option>
-                    <Option value="php">php</Option>
-                </Select>
+                <!--<Select v-model="uploadJsonData.type" class="tw-mb-2" placeholder="Please Select type">-->
+                <!--    <Option value="javascript">javascript</Option>-->
+                <!--    <Option value="vue">vue</Option>-->
+                <!--    <Option value="php">php</Option>-->
+                <!--</Select>-->
 
-                <Select v-model="uploadJsonData.language" class="tw-mb-2" placeholder="Please Select Language">
-                    <Option :value="item.value" v-for="(item,index) in toLangList" :key="index">{{
-                            item.label
-                        }}
-                    </Option>
-                </Select>
+                <!--<Select v-model="uploadJsonData.language" class="tw-mb-2" placeholder="Please Select Language">-->
+                <!--    <Option :value="item.value" v-for="(item,index) in toLangList" :key="index">{{-->
+                <!--            item.label-->
+                <!--        }}-->
+                <!--    </Option>-->
+                <!--</Select>-->
             </div>
         </Modal>
     </div>
@@ -172,7 +171,7 @@ export default {
     data() {
         return {
             uploadJsonData: {
-                language: null,
+                language: 'en',
                 json: null,
                 type: "javascript" //vue php
             },
