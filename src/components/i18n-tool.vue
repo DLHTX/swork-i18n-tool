@@ -368,7 +368,7 @@ export default {
                 })
                 this.random = new Date().getTime()
                 await this.getLanguage()
-                this.spliceLangTag()
+                // this.spliceLangTag()
             }).catch(() => {
                 this.loading = false
             })
@@ -392,12 +392,13 @@ export default {
                                 })
                             }
                             this.toLangList.splice(index, 1)
-                            this.$forceUpdate()
+                            console.log(this.toLangList,'111')
                             this.random = new Date().getTime()
                         }
                     })
                 }
                 this.tableColumns = this.tableColumns.concat(this.dynamicColumn)
+                console.log(this.tableColumns)
             }
         },
         addTranslateColumn(row) {
@@ -407,8 +408,7 @@ export default {
             //     item[row.value] = ""
             // })
             this.saveTranslateFile({target: [row.value]})
-            // this.$forceUpdate()
-            // this.spliceLangTag()
+            this.spliceLangTag()
         },
         saveAndBlur(index) {
             this.saveTranslateFile({translateName: this.translateFileList[index].name, index})
