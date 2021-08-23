@@ -25,9 +25,12 @@
         <div class="right-side tw-w-9/12 tw-ml-4 tw-pl-4" v-if="translateFileList.length!=0" style="width: 75%;">
             <div class="dflex-uncenter">
                 <Input v-model="searchText" placeholder="Search..."/>
+                <Button prefix="ios-add" class="tw-ml-3" type="info" @click="showUpload=true">Upload
+                </Button>
                 <Button prefix="ios-add" class="tw-ml-3" type="primary" @click="addTranslateRow">Add Row
                 </Button>
                 <Button type="warning" class="tw-ml-2" @click="startTranslate()">Translate</Button>
+                <Button type="warning" class="tw-ml-2" @click="showDownload=true">Download</Button>
                 <!--<Button type="warning" class="tw-ml-2" @click="TranslateGenerate()">Download File</Button>-->
             </div>
             <div class="tw-mt-2">
@@ -37,6 +40,10 @@
             </div>
             <div class="text-red tw-mt-1">
                 Tips:The lock button can prevent it from being overwritten during automatic translation
+            </div>
+            <div class="dflex">
+                <Progress v-if="translateProgress" :percent="translateProgress" :stroke-color="['#108ee9', '#87d068']"/>
+                <span v-if="translateFail!=0" class="text-red tw-ml-2 dflex tw-mr-2">Fail:{{ translateFail }}</span>
             </div>
             <Table :height="tableHeight" :key="random" class="tw-mt-3" ref="table" align="center" size="small"
                    :loading="loading"
@@ -54,15 +61,54 @@
 
                 <template slot-scope="{ row, index }" slot="action">
                     <div class="dflex">
-                        <i class="hover-red  ivu-icon iconfont icon-trash ios-icon hover-invert text-red "></i>
+                        <i class="hover-red  ivu-icon iconfont icon-trash ios-icon hover-invert text-red "
+                           @click="deleteRow(row._id)"></i>
                     </div>
                 </template>
             </Table>
         </div>
+
+        <Modal v-model="showUpload" width="360" :footer-hide="true">
+            <div class="tw-p-4 tw-mt-4">
+                <div class="tw-mb-4 text-red">Please enter in JSON format</div>
+                <Select v-model="uploadJsonData.type" class="tw-mb-2" placeholder="Please Select type">
+                    <Option value="javascript">javascript</Option>
+                    <Option value="vue">vue</Option>
+                    <Option value="php">php</Option>
+                </Select>
+
+                <vue-json-editor
+                    v-model="uploadJsonData.json"
+                    :show-btns="true"
+                    :mode="'code'"
+                    lang="zh"
+                    @json-save="onJsonSave"
+                ></vue-json-editor>
+            </div>
+        </Modal>
+
+        <Modal v-model="showDownload" width="360" @on-ok="downloadFile">
+            <div class="tw-p-4 tw-mt-4">
+                <Select v-model="uploadJsonData.type" class="tw-mb-2" placeholder="Please Select type">
+                    <Option value="javascript">javascript</Option>
+                    <Option value="vue">vue</Option>
+                    <Option value="php">php</Option>
+                </Select>
+
+                <Select v-model="uploadJsonData.language" class="tw-mb-2" placeholder="Please Select Language">
+                    <Option :value="item.value" v-for="(item,index) in toLangList" :key="index">{{
+                            item.label
+                        }}
+                    </Option>
+                </Select>
+            </div>
+        </Modal>
     </div>
 </template>
 
 <script>
+import vueJsonEditor from "vue-json-editor"
+
 const renderHeader = (h, params, _self, v) =>
     h("div", [
         h("span", params.column.title),
@@ -122,9 +168,17 @@ const renderColumnTranslate = (h, params, _self, v) =>
 let ACCEPT_FIELDS = []
 export default {
     name: "i18n-tool",
-    components: {},
+    components: {vueJsonEditor},
     data() {
         return {
+            uploadJsonData: {
+                language: null,
+                json: null,
+                type: "javascript" //vue php
+            },
+            type: 'javascript',
+            showDownload: false,
+            showUpload: false,
             curEditIdx: -1,
             tableHeight: null,
             rightSideWidth: 1000,
@@ -166,6 +220,9 @@ export default {
             toLangList: [],
             random: new Date().getTime(),
             translateInterval: [],
+            translateProgress: null,
+            translateProgressInterval: null,
+            translateFail: 0
         }
     },
     watch: {
@@ -175,6 +232,9 @@ export default {
     },
     created() {
 
+    },
+    beforeDestroy() {
+        this.resetProgress()
     },
     mounted() {
         // this.$nextTick(() => {
@@ -187,6 +247,29 @@ export default {
         // window.addEventListener('resize', () => this.tableHeight = document.getElementsByClassName('i18n-tool-box')[0].clientHeight - 100, false)
     },
     methods: {
+        changeData(e) {
+            console.log(e)
+        },
+        resetProgress() {
+            clearInterval(this.translateProgressInterval)
+            this.translateProgress = null
+        },
+        deleteRow(id) {
+            this.$api.deleteTranslateRow(this.project_id, this.translateFileList[this.translateFileIdx]._id, id).then(res => {
+                this.getTranslateRows()
+            })
+        },
+        onJsonSave(value) {
+            console.log("value:", value);
+            this.$api.parseData(this.project_id, this.translateFileList[this.translateFileIdx]._id, {
+                lang: 'en',
+                type: this.uploadJsonData.type,
+                content: JSON.stringify(this.uploadJsonData.json)
+            }).then(res => {
+                this.$Message.success('Upload success')
+                this.getTranslateRows()
+            })
+        },
         startTranslate() {
             this.$api.startTranslate(this.project_id, this.translateFileList[this.translateFileIdx]._id).then(res => {
                 this.$Message.success('translating')
@@ -194,14 +277,34 @@ export default {
                 this.getTranslateProcess()
             })
         },
-        getTranslateProcess() {
-            return new Promise((resolve, reject) => {
-                this.$api.getTranslateProcess(this.project_id, this.translateFileList[this.translateFileIdx]._id).then(res => {
-                    resolve(res)
-                }).catch(err => {
-                    reject(err)
-                })
+        downloadFile() {
+            if (!this.uploadJsonData.language) {
+                return this.$Message.warning('Language can not empty')
+            }
+            if (!this.uploadJsonData.type) {
+                return this.$Message.warning('type can not empty')
+            }
+            this.$api.generateFile(this.project_id, this.translateFileList[this.translateFileIdx]._id, this.uploadJsonData.type, this.uploadJsonData.language).then(res => {
+
             })
+        },
+        getTranslateProcess() {
+            clearInterval(this.translateProgressInterval)
+            this.translateProgressInterval = setInterval(() => {
+                this.$api.getTranslateProcess(this.project_id, this.translateFileList[this.translateFileIdx]._id).then(res => {
+                    this.translateProgress = (res.success / res.all).toFixed(2) * 100
+                    this.$forceUpdate()
+                    if (this.translateProgress == 100 || res.fail + res.success == res.all) {
+                        this.translateFail = res.fail
+                        clearInterval(this.translateProgressInterval)
+                        this.getTranslateRows()
+                    }
+                }).catch(err => {
+                })
+            }, 800)
+            // return new Promise((resolve, reject) => {
+            //
+            // })
         },
         translateLock(index, key, status) {
             this.data[index][key].status = status ? 'lock' : 'unlock'
@@ -213,22 +316,28 @@ export default {
             // this.translateAllRows(this.data)
         },
         async deleteColumn(param) {
-            this.data.forEach((item, index) => {
-                for (let key in item) {
-                    if (key == param) {
-                        delete this.data[index][key]
-                        delete this.data[index][key + '_lock']
-                    }
-                }
+            console.log(param)
+            this.$api.deleteTargetLanguage(this.project_id, this.translateFileList[this.translateFileIdx]._id, {
+                target: param
+            }).then(res => {
+                this.getTranslateRows()
             })
-            this.tableColumns.forEach((item, index) => {
-                if (item.slot == param) {
-                    this.tableColumns.splice(index, 1)
-                }
-            })
-            this.random = new Date().getTime()
-            await this.getLanguage()
-            this.spliceLangTag()
+            // this.data.forEach((item, index) => {
+            //     for (let key in item) {
+            //         if (key == param) {
+            //             delete this.data[index][key]
+            //             delete this.data[index][key + '_lock']
+            //         }
+            //     }
+            // })
+            // this.tableColumns.forEach((item, index) => {
+            //     if (item.slot == param) {
+            //         this.tableColumns.splice(index, 1)
+            //     }
+            // })
+            // this.random = new Date().getTime()
+            // await this.getLanguage()
+            // this.spliceLangTag()
         },
         updateTranslateRow(row) {
             console.log(row)
@@ -244,6 +353,7 @@ export default {
             })
         },
         handleFileClick(index) {
+            this.resetProgress()
             this.translateFileIdx = index
             this.getTranslateRows(index)
         },
@@ -257,7 +367,6 @@ export default {
                         this.tableColumns.splice(index, 1)
                     }
                 })
-
                 this.random = new Date().getTime()
                 await this.getLanguage()
                 this.spliceLangTag()

@@ -6,7 +6,11 @@ import App from "./App.vue";
 import init from './init'
 
 Vue.config.productionTip = false;
-
+// Vue.use(ViewUI, {
+//     transfer: true,
+//     size: 'large',
+//     capture: false
+// });
 function getBaseName() {
     return "/";
 }
