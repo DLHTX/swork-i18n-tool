@@ -246,6 +246,37 @@ export default {
         // window.addEventListener('resize', () => this.tableHeight = document.getElementsByClassName('i18n-tool-box')[0].clientHeight - 100, false)
     },
     methods: {
+        initTableColumns() {
+            this.tableColumns = [
+                {
+                    title: "#",
+                    slot: "#",
+                    width: 50,
+                    align: "center",
+                },
+                {
+                    title: "key",
+                    slot: "key",
+                    align: "center",
+                    minWidth: 120
+
+                },
+                {
+                    title: "英语",
+                    slot: "en",
+                    align: "center",
+                    minWidth: 120
+                },
+                {
+                    title: "Action",
+                    slot: "action",
+                    align: "center",
+                    fixed: 'right',
+                    width: 80,
+                }
+            ]
+            this.random = new Date().getTime()
+        },
         changeData(e) {
             console.log(e)
         },
@@ -293,7 +324,7 @@ export default {
                 this.$api.getTranslateProcess(this.project_id, this.translateFileList[this.translateFileIdx]._id).then(res => {
                     this.translateProgress = (res.success / res.all).toFixed(2) * 100
                     this.$forceUpdate()
-                    if (this.translateProgress == 100 ) {
+                    if (this.translateProgress == 100) {
                         this.translateFail = res.fail
                         clearInterval(this.translateProgressInterval)
                         this.getTranslateRows()
@@ -361,12 +392,8 @@ export default {
             this.$api.getTranslateRows(this.project_id, this.translateFileList[index ? index : this.translateFileIdx]._id).then(async res => {
                 this.loading = false
                 this.data = res.data
-                this.tableColumns.forEach((item, index) => {
-                    if (item.is_dynamic) {
-                        this.tableColumns.splice(index, 1)
-                    }
-                })
-                this.random = new Date().getTime()
+                this.initTableColumns()
+
                 await this.getLanguage()
                 this.spliceLangTag()
             }).catch(() => {
@@ -376,6 +403,7 @@ export default {
         spliceLangTag() {
             try {
                 this.dynamicColumn = []
+                this.random = new Date().getTime()
                 if (this.data.length > 0) {
                     for (let key in this.data[0]) {
                         this.toLangList.forEach((item, index) => {
@@ -400,6 +428,7 @@ export default {
                     }
                     if (this.dynamicColumn.length != 0) {
                         this.tableColumns = this.tableColumns.concat(this.dynamicColumn)
+                        this.random = new Date().getTime()
                     }
                     console.log(this.tableColumns)
                 }
