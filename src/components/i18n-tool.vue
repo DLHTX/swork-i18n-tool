@@ -490,7 +490,6 @@ export default {
                 this.translateFileList = res
                 if (this.translateFileList.length > 0) {
                     this.getTranslateRows(0)
-
                 }
             })
         },
